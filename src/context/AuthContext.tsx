@@ -9,6 +9,22 @@ export interface AuthUser {
   role?: 'admin' | 'user';
 }
 
+export const parseJwt = (token: string) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+};
+
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
@@ -35,7 +51,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // Gọi api lấy thông tin profile cá nhân
       const res = await api.get('/api/profile');
-      setUser(res.data);
+      
+      // Đọc và trích xuất role từ JWT
+      const token = localStorage.getItem('accessToken');
+      let role: 'admin' | 'user' = 'user';
+      if (token) {
+        const decoded = parseJwt(token);
+        const roleClaim = decoded?.['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || decoded?.['role'];
+        if (roleClaim === 'Admin' || (Array.isArray(roleClaim) && roleClaim.includes('Admin'))) {
+          role = 'admin';
+        }
+      }
+
+      setUser({ ...res.data, role });
     } catch (err) {
       logout();
     } finally {

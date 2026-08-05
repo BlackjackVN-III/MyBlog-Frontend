@@ -10,7 +10,7 @@ import {
   Monitor, Cpu, CheckCircle2,
   LogOut, Bell, Shield, Lock, KeyRound, AlertTriangle
 } from "lucide-react";
-import { useAuth, AuthUser } from "../context/AuthContext";
+import { useAuth, AuthUser, parseJwt } from "../context/AuthContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -278,7 +278,7 @@ function Avatar({ initials, size = "md", src }: { initials: string; size?: "sm" 
 
 // ─── Login Modal ──────────────────────────────────────────────────────────────
 
-function LoginModal({ onClose }: { onClose: () => void }) {
+function LoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: (role: 'admin' | 'user') => void }) {
   const { login } = useAuth();
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
@@ -291,6 +291,18 @@ function LoginModal({ onClose }: { onClose: () => void }) {
     setLoading(true);
     try {
       await login(userName, password);
+      
+      const token = localStorage.getItem('accessToken');
+      let role: 'admin' | 'user' = 'user';
+      if (token) {
+        const decoded = parseJwt(token);
+        const roleClaim = decoded?.['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || decoded?.['role'];
+        if (roleClaim === 'Admin' || (Array.isArray(roleClaim) && roleClaim.includes('Admin'))) {
+          role = 'admin';
+        }
+      }
+      
+      onSuccess?.(role);
       onClose();
     } catch (err: any) {
       setError(
@@ -1604,6 +1616,13 @@ export default function App() {
       {showLogin && (
         <LoginModal
           onClose={() => setShowLogin(false)}
+          onSuccess={(role) => {
+            if (role === "admin") {
+              setPage("admin");
+            } else {
+              setPage("profile");
+            }
+          }}
         />
       )}
     </div>
