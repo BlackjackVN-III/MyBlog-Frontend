@@ -146,8 +146,8 @@ export default function ProfilePage() {
           <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #16a34a 0%, transparent 50%), radial-gradient(circle at 80% 20%, #4ade80 0%, transparent 40%)" }} />
         </div>
         <div className="px-8 pb-8">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-14 mb-6">
-            <div className="relative group w-24 h-24 rounded-2xl border-4 border-card bg-primary/20 flex items-center justify-center text-2xl font-bold text-accent shadow-xl overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+            <div className="relative group w-24 h-24 -mt-12 sm:-mt-14 rounded-2xl border-4 border-card bg-primary/20 flex items-center justify-center text-2xl font-bold text-accent shadow-xl overflow-hidden">
               {loadingAvatar ? (
                 <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                   <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
