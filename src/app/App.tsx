@@ -553,7 +553,7 @@ function Navbar({
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post, onRead }: { post: BlogPost; onRead: () => void }) {
+function PostCard({ post, onRead }: { post: BlogPost; onRead: (id: string | number) => void }) {
   const [liked, setLiked] = useState(false);
   return (
     <article className="group rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/5">
@@ -574,7 +574,7 @@ function PostCard({ post, onRead }: { post: BlogPost; onRead: () => void }) {
         <h2
           className="text-lg font-semibold text-foreground mb-2 leading-snug group-hover:text-accent transition-colors line-clamp-2 cursor-pointer"
           style={{ fontFamily: "var(--font-display)" }}
-          onClick={onRead}
+          onClick={() => onRead(post.id)}
         >
           {post.title}
         </h2>
@@ -597,14 +597,14 @@ function PostCard({ post, onRead }: { post: BlogPost; onRead: () => void }) {
         </div>
         <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Avatar initials="NV" size="sm" />
+            <Avatar initials={(post.author || "U").substring(0, 2).toUpperCase()} size="sm" src={post.authorAvatar} />
             <div>
               <p className="text-xs font-medium text-foreground">{post.author}</p>
               <p className="text-xs text-muted-foreground">{post.date}</p>
             </div>
           </div>
           <button
-            onClick={onRead}
+            onClick={() => onRead(post.id)}
             className="flex items-center gap-1 text-xs text-accent hover:gap-2 transition-all"
           >
             Đọc bài <ArrowRight className="w-3 h-3" />
@@ -617,16 +617,87 @@ function PostCard({ post, onRead }: { post: BlogPost; onRead: () => void }) {
 
 // ─── Home Page ────────────────────────────────────────────────────────────────
 
-function HomePage({ onReadPost }: { onReadPost: () => void }) {
+function HomePage({ onReadPost }: { onReadPost: (id: string | number) => void }) {
   const [query, setQuery] = useState("");
-  const [activeTag, setActiveTag] = useState("Tất cả");
-  const featured = POSTS[0];
+  const [activeTagSlug, setActiveTagSlug] = useState("");
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [tags, setTags] = useState<{ name: string; slug: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [sortBy, setSortBy] = useState("CreatedAt");
+  const [isDecsending, setIsDecsending] = useState(true);
 
-  const filtered = POSTS.filter((p) => {
-    const matchTag = activeTag === "Tất cả" || p.tags.includes(activeTag);
-    const matchQ = !query || p.title.toLowerCase().includes(query.toLowerCase());
-    return matchTag && matchQ;
-  });
+  const mapBlogToFrontend = (blog: any): BlogPost => {
+    return {
+      id: blog.id,
+      title: blog.title || "",
+      excerpt: blog.summary || "",
+      content: blog.content || "",
+      author: blog.author?.username || "Ẩn danh",
+      authorAvatar: blog.author?.avatarUrl || "",
+      date: new Date(blog.createdAt).toLocaleDateString("vi-VN"),
+      readTime: `${Math.ceil((blog.content || "").split(/\s+/).length / 200)} phút đọc`,
+      views: 0,
+      likes: 0,
+      comments: 0,
+      cover: blog.coverImageUrl || "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=85",
+      tags: (blog.tags || []).map((t: any) => t.name),
+    };
+  };
+
+  // Load tags
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        const res = await api.get('/api/tags');
+        setTags(res.data);
+      } catch (err) {
+        console.error("Lỗi khi tải tags", err);
+      }
+    };
+    fetchTags();
+  }, []);
+
+  // Load posts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const fetchPosts = async () => {
+        setLoading(true);
+        try {
+          const res = await api.get('/api/blogs', {
+            params: {
+              search: query,
+              tagSlug: activeTagSlug,
+              sortBy,
+              isDecsending,
+              pageNumber,
+              pageSize: 6
+            }
+          });
+          const mapped = res.data.map(mapBlogToFrontend);
+          if (pageNumber === 1) {
+            setPosts(mapped);
+          } else {
+            setPosts((prev) => [...prev, ...mapped]);
+          }
+          setHasMore(mapped.length === 6);
+        } catch (err) {
+          console.error("Lỗi tải bài viết", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchPosts();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, activeTagSlug, sortBy, isDecsending, pageNumber]);
+
+  // Reset page number on filter changes
+  useEffect(() => {
+    setPageNumber(1);
+  }, [query, activeTagSlug, sortBy, isDecsending]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
@@ -649,39 +720,41 @@ function HomePage({ onReadPost }: { onReadPost: () => void }) {
       </div>
 
       {/* Featured */}
-      <div
-        className="relative rounded-3xl overflow-hidden mb-14 cursor-pointer group"
-        onClick={onReadPost}
-      >
-        <div className="relative h-80 sm:h-96">
-          <img
-            src={featured.cover}
-            alt={featured.title}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-card/95 via-card/60 to-transparent" />
-        </div>
-        <div className="absolute inset-0 p-8 sm:p-12 flex flex-col justify-end sm:justify-center sm:max-w-xl">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <span className="px-3 py-1 rounded-full bg-primary text-xs font-medium text-white">Featured</span>
-            {featured.tags.slice(0, 2).map((t) => (
-              <TagBadge key={t} tag={t} />
-            ))}
+      {posts[0] && (
+        <div
+          className="relative rounded-3xl overflow-hidden mb-14 cursor-pointer group"
+          onClick={() => onReadPost(posts[0].id)}
+        >
+          <div className="relative h-80 sm:h-96">
+            <img
+              src={posts[0].cover}
+              alt={posts[0].title}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-card/95 via-card/60 to-transparent" />
           </div>
-          <h2
-            className="text-2xl sm:text-3xl font-bold text-foreground mb-3 leading-tight"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {featured.title}
-          </h2>
-          <p className="text-muted-foreground text-sm mb-5 line-clamp-2">{featured.excerpt}</p>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{featured.readTime}</span>
-            <span className="flex items-center gap-1"><Eye className="w-4 h-4" />{featured.views.toLocaleString()} lượt xem</span>
-            <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-red-400" />{featured.likes}</span>
+          <div className="absolute inset-0 p-8 sm:p-12 flex flex-col justify-end sm:justify-center sm:max-w-xl">
+            <div className="inline-flex items-center gap-2 mb-4">
+              <span className="px-3 py-1 rounded-full bg-primary text-xs font-medium text-white">Featured</span>
+              {posts[0].tags.slice(0, 2).map((t) => (
+                <TagBadge key={t} tag={t} />
+              ))}
+            </div>
+            <h2
+              className="text-2xl sm:text-3xl font-bold text-foreground mb-3 leading-tight"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {posts[0].title}
+            </h2>
+            <p className="text-muted-foreground text-sm mb-5 line-clamp-2">{posts[0].excerpt}</p>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{posts[0].readTime}</span>
+              <span className="flex items-center gap-1"><Eye className="w-4 h-4" />{posts[0].views.toLocaleString()} lượt xem</span>
+              <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-red-400" />{posts[0].likes}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-8">
@@ -695,25 +768,46 @@ function HomePage({ onReadPost }: { onReadPost: () => void }) {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {ALL_TAGS.slice(0, 7).map((t) => (
-            <TagBadge key={t} tag={t} active={activeTag === t} onClick={() => setActiveTag(t)} />
+        <div className="flex flex-wrap gap-2 items-center">
+          <TagBadge tag="Tất cả" active={activeTagSlug === ""} onClick={() => setActiveTagSlug("")} />
+          {tags.map((t) => (
+            <TagBadge key={t.slug} tag={t.name} active={activeTagSlug === t.slug} onClick={() => setActiveTagSlug(t.slug)} />
           ))}
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((post) => (
-          <PostCard key={post.id} post={post} onRead={onReadPost} />
-        ))}
-      </div>
-
-      {filtered.length === 0 && (
+      {loading && posts.length === 0 ? (
+        <div className="py-24 text-center">
+          <span className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin inline-block" />
+          <p className="text-muted-foreground text-sm mt-4">Đang tải bài viết...</p>
+        </div>
+      ) : posts.length === 0 ? (
         <div className="py-24 text-center text-muted-foreground">
           <Search className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p>Không tìm thấy bài viết phù hợp</p>
         </div>
+      ) : (
+        <>
+          {/* Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} onRead={onReadPost} />
+            ))}
+          </div>
+
+          {/* Load More */}
+          {hasMore && (
+            <div className="flex justify-center mt-12">
+              <button
+                onClick={() => setPageNumber((prev) => prev + 1)}
+                disabled={loading}
+                className="px-6 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-secondary disabled:opacity-60 transition-colors"
+              >
+                {loading ? "Đang tải..." : "Tải thêm bài viết"}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -721,16 +815,85 @@ function HomePage({ onReadPost }: { onReadPost: () => void }) {
 
 // ─── Blog Detail Page ─────────────────────────────────────────────────────────
 
-function CommentItem({ comment }: { comment: Comment }) {
+interface FrontendComment {
+  id: string;
+  author: string;
+  avatar: string;
+  avatarUrl?: string;
+  date: string;
+  content: string;
+  likes: number;
+  replies: FrontendComment[];
+  parentCommentId?: string | null;
+}
+
+const buildCommentTree = (flatComments: any[]): FrontendComment[] => {
+  const commentMap: { [key: string]: FrontendComment } = {};
+  
+  flatComments.forEach((c) => {
+    commentMap[c.id] = {
+      id: c.id,
+      author: c.user?.username || "Ẩn danh",
+      avatar: (c.user?.username || "U").substring(0, 2).toUpperCase(),
+      avatarUrl: c.user?.avatarUrl || "",
+      date: new Date(c.createdAt).toLocaleDateString("vi-VN") + " " + new Date(c.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }),
+      content: c.content,
+      likes: 0,
+      replies: [],
+      parentCommentId: c.parentCommentId,
+    };
+  });
+
+  const roots: FrontendComment[] = [];
+
+  flatComments.forEach((c) => {
+    const mapped = commentMap[c.id];
+    if (c.parentCommentId && commentMap[c.parentCommentId]) {
+      commentMap[c.parentCommentId].replies.push(mapped);
+    } else {
+      roots.push(mapped);
+    }
+  });
+
+  return roots;
+};
+
+function CommentItem({ comment, onReload, postId }: { comment: FrontendComment; onReload: () => void; postId: string }) {
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [liked, setLiked] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+
+  const handleSendReply = async () => {
+    if (!user) {
+      alert("Vui lòng đăng nhập để phản hồi.");
+      return;
+    }
+    if (!replyText.trim()) return;
+    setLoading(true);
+    try {
+      await api.post('/api/comments', {
+        postId,
+        content: replyText,
+        parentCommentId: comment.id
+      });
+      setReplyText("");
+      setShowReply(false);
+      onReload();
+    } catch (err) {
+      console.error("Lỗi gửi phản hồi", err);
+      alert("Gửi phản hồi thất bại.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex gap-4">
-        <Avatar initials={comment.avatar} size="md" />
+        <Avatar initials={comment.avatar} size="md" src={comment.avatarUrl} />
         <div className="flex-1">
           <div className="bg-secondary rounded-2xl p-4">
             <div className="flex items-center justify-between mb-1">
@@ -772,19 +935,22 @@ function CommentItem({ comment }: { comment: Comment }) {
         <div className="ml-14 space-y-3">
           {comment.replies.map((r) => (
             <div key={r.id} className="flex gap-3">
-              <Avatar initials={r.avatar} size="sm" />
+              <Avatar initials={r.avatar} size="sm" src={r.avatarUrl} />
               <div className="flex-1">
                 <div className="bg-muted rounded-xl p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className={`font-semibold text-xs ${r.author === "Nguyễn Văn Dev" ? "text-accent" : "text-foreground"}`}>
-                      {r.author} {r.author === "Nguyễn Văn Dev" && "• Tác giả"}
+                    <span className="font-semibold text-xs text-foreground">
+                      {r.author}
                     </span>
                     <span className="text-xs text-muted-foreground">{r.date}</span>
                   </div>
                   <p className="text-sm text-foreground/90">{r.content}</p>
                 </div>
                 <div className="flex items-center gap-3 mt-1.5 ml-2">
-                  <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent transition-colors">
+                  <button
+                    onClick={() => {}}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent transition-colors"
+                  >
                     <ThumbsUp className="w-3 h-3" />{r.likes}
                   </button>
                 </div>
@@ -796,17 +962,19 @@ function CommentItem({ comment }: { comment: Comment }) {
 
       {showReply && (
         <div className="ml-14 flex gap-3">
-          <Avatar initials="ME" size="sm" />
+          <Avatar initials={(user?.userName || "U").substring(0, 2).toUpperCase()} size="sm" src={user?.avatarUrl} />
           <div className="flex-1 flex gap-2">
             <input
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Viết phản hồi..."
+              disabled={loading}
               className="flex-1 px-4 py-2 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
             />
             <button
-              onClick={() => { setReplyText(""); setShowReply(false); }}
-              className="px-4 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 transition-colors flex items-center gap-1"
+              onClick={handleSendReply}
+              disabled={loading}
+              className="px-4 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 transition-colors flex items-center gap-1 disabled:opacity-60"
             >
               <Send className="w-3 h-3" />
             </button>
@@ -817,9 +985,85 @@ function CommentItem({ comment }: { comment: Comment }) {
   );
 }
 
-function BlogDetailPage({ onBack }: { onBack: () => void }) {
-  const post = POSTS[0];
-  const [comment, setComment] = useState("");
+function BlogDetailPage({ postId, onBack }: { postId: string; onBack: () => void }) {
+  const [post, setPost] = useState<any | null>(null);
+  const [comments, setComments] = useState<FrontendComment[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const { user } = useAuth();
+
+  const fetchPostDetails = async () => {
+    setLoading(true);
+    try {
+      const postRes = await api.get(`/api/blogs/${postId}`);
+      setPost(postRes.data);
+      await fetchComments();
+    } catch (err) {
+      console.error("Lỗi khi tải chi tiết bài viết", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchComments = async () => {
+    try {
+      const commentsRes = await api.get(`/api/comments/post/${postId}`);
+      const tree = buildCommentTree(commentsRes.data);
+      setComments(tree);
+    } catch (err) {
+      console.error("Lỗi khi tải bình luận", err);
+    }
+  };
+
+  useEffect(() => {
+    if (postId) {
+      fetchPostDetails();
+    }
+  }, [postId]);
+
+  const handleSendComment = async () => {
+    if (!user) {
+      alert("Vui lòng đăng nhập để bình luận.");
+      return;
+    }
+    if (!newComment.trim()) return;
+    setSubmittingComment(true);
+    try {
+      await api.post('/api/comments', {
+        postId,
+        content: newComment
+      });
+      setNewComment("");
+      await fetchComments();
+    } catch (err) {
+      console.error("Lỗi khi bình luận", err);
+      alert("Bình luận thất bại.");
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-32 text-center">
+        <span className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin inline-block" />
+        <p className="text-muted-foreground text-sm mt-4">Đang tải nội dung bài viết...</p>
+      </div>
+    );
+  }
+
+  if (!post) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-32 text-center">
+        <h2 className="text-2xl font-bold text-foreground mb-3">Không tìm thấy bài viết</h2>
+        <button onClick={onBack} className="text-primary hover:underline">Quay lại trang chủ</button>
+      </div>
+    );
+  }
+
+  const formattedDate = new Date(post.createdAt).toLocaleDateString("vi-VN");
+  const readTime = `${Math.ceil((post.content || "").split(/\s+/).length / 200)} phút đọc`;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
@@ -832,12 +1076,12 @@ function BlogDetailPage({ onBack }: { onBack: () => void }) {
 
       {/* Cover */}
       <div className="rounded-3xl overflow-hidden h-64 sm:h-80 mb-10 bg-secondary">
-        <img src={post.cover} alt={post.title} className="w-full h-full object-cover" />
+        <img src={post.coverImageUrl || "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=85"} alt={post.title} className="w-full h-full object-cover" />
       </div>
 
       {/* Tags */}
       <div className="flex flex-wrap gap-2 mb-5">
-        {post.tags.map((t) => <TagBadge key={t} tag={t} />)}
+        {(post.tags || []).map((t: any) => <TagBadge key={t.slug} tag={t.name} />)}
       </div>
 
       <h1
@@ -850,70 +1094,28 @@ function BlogDetailPage({ onBack }: { onBack: () => void }) {
       {/* Meta */}
       <div className="flex flex-wrap items-center gap-4 pb-8 border-b border-border mb-10">
         <div className="flex items-center gap-3">
-          <Avatar initials="NV" size="md" />
+          <Avatar initials={(post.author?.username || "U").substring(0, 2).toUpperCase()} size="md" src={post.author?.avatarUrl} />
           <div>
-            <p className="text-sm font-semibold text-foreground">{post.author}</p>
-            <p className="text-xs text-muted-foreground">Full Stack Developer</p>
+            <p className="text-sm font-semibold text-foreground">{post.author?.username || "Ẩn danh"}</p>
+            <p className="text-xs text-muted-foreground">{post.author?.email || "Người viết bài"}</p>
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground ml-auto">
-          <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{post.date}</span>
-          <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{post.readTime}</span>
-          <span className="flex items-center gap-1"><Eye className="w-4 h-4" />{post.views.toLocaleString()}</span>
+          <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{formattedDate}</span>
+          <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{readTime}</span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="prose max-w-none mb-12 space-y-6">
-        <p className="text-foreground/90 text-lg leading-relaxed">{post.excerpt}</p>
-        <p className="text-foreground/80 leading-relaxed">
-          Microservices architecture đã trở thành chuẩn mực trong phát triển phần mềm hiện đại. Trong bài viết này, tôi sẽ chia sẻ kinh nghiệm thực tế xây dựng hệ thống microservices cho ứng dụng thương mại điện tử với hàng triệu người dùng.
-        </p>
-        <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
-          Tại sao chọn Microservices?
-        </h2>
-        <p className="text-foreground/80 leading-relaxed">
-          Monolithic architecture đã phục vụ chúng ta tốt trong nhiều năm, nhưng khi ứng dụng phát triển lớn hơn, chúng ta bắt đầu gặp phải những hạn chế về khả năng mở rộng và deployment independence. Mỗi deploy cần toàn bộ application restart, team lớn conflict code liên tục, và scaling chỉ có thể theo chiều dọc.
-        </p>
-        <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
-          Thiết kế Service Boundaries
-        </h2>
-        <p className="text-foreground/80 leading-relaxed">
-          Nguyên tắc đầu tiên khi thiết kế microservices là xác định bounded contexts dựa trên domain model. Mỗi service nên có single responsibility và data ownership rõ ràng. Đừng chia service quá nhỏ — "nano-services" là một anti-pattern phổ biến.
-        </p>
-        <div
-          className="rounded-xl p-5 border border-border overflow-x-auto"
-          style={{ background: "#1a2e22", fontFamily: "var(--font-mono)" }}
-        >
-          <pre className="text-sm text-green-400/90 whitespace-pre">{`// User Service
-const userService = {
-  endpoint: '/api/users',
-  database: 'users_db',
-  events: ['user.created', 'user.updated']
-}
-
-// Order Service
-const orderService = {
-  endpoint: '/api/orders',
-  database: 'orders_db',
-  events: ['order.placed', 'order.fulfilled']
-}`}</pre>
-        </div>
-        <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
-          Kubernetes Deployment Strategy
-        </h2>
-        <p className="text-foreground/80 leading-relaxed">
-          Kubernetes giúp chúng ta quản lý container orchestration một cách hiệu quả với auto-scaling, rolling updates và self-healing capabilities. Với HPA (Horizontal Pod Autoscaler), system tự động scale up khi CPU vượt 70% và scale down khi traffic giảm.
-        </p>
-      </div>
+      <div className="prose max-w-none mb-12 space-y-6 text-foreground/80 leading-relaxed text-base" dangerouslySetInnerHTML={{ __html: post.content }} />
 
       {/* Reactions */}
       <div className="flex items-center gap-4 py-6 border-y border-border mb-10">
         <button className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-border hover:border-primary/40 hover:bg-primary/10 text-foreground transition-all">
-          <Heart className="w-4 h-4" /> {post.likes} Thích
+          <Heart className="w-4 h-4" /> 0 Thích
         </button>
         <button className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-border hover:border-primary/40 hover:bg-primary/10 text-foreground transition-all">
-          <MessageSquare className="w-4 h-4" /> {post.comments} Bình luận
+          <MessageSquare className="w-4 h-4" /> {comments.length} Bình luận
         </button>
         <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
           <Globe className="w-4 h-4" />
@@ -924,33 +1126,35 @@ const orderService = {
       {/* Comments */}
       <div>
         <h3 className="text-xl font-bold text-foreground mb-6" style={{ fontFamily: "var(--font-display)" }}>
-          Bình luận ({COMMENTS.length})
+          Bình luận ({comments.length})
         </h3>
 
         {/* New comment */}
         <div className="flex gap-4 mb-8">
-          <Avatar initials="ME" size="md" />
+          <Avatar initials={(user?.userName || "U").substring(0, 2).toUpperCase()} size="md" src={user?.avatarUrl} />
           <div className="flex-1">
             <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
               placeholder="Chia sẻ suy nghĩ của bạn..."
               rows={3}
+              disabled={submittingComment}
               className="w-full px-4 py-3 rounded-2xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none transition-colors"
             />
             <div className="flex justify-end mt-2">
               <button
-                onClick={() => setComment("")}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+                onClick={handleSendComment}
+                disabled={submittingComment}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
               >
-                <Send className="w-4 h-4" /> Gửi bình luận
+                <Send className="w-4 h-4" /> {submittingComment ? "Đang gửi..." : "Gửi bình luận"}
               </button>
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
-          {COMMENTS.map((c) => <CommentItem key={c.id} comment={c} />)}
+          {comments.map((c) => <CommentItem key={c.id} comment={c} onReload={fetchComments} postId={postId} />)}
         </div>
       </div>
     </div>
@@ -1783,9 +1987,16 @@ export default function App() {
   const [page, setPage] = useState<Page>("home");
   const { user, logout } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
 
-  const handleReadPost = () => setPage("blog-detail");
-  const handleBackToHome = () => setPage("home");
+  const handleReadPost = (id: string | number) => {
+    setSelectedPostId(String(id));
+    setPage("blog-detail");
+  };
+  const handleBackToHome = () => {
+    setSelectedPostId(null);
+    setPage("home");
+  };
 
   const handleLogout = () => {
     logout();
@@ -1803,7 +2014,7 @@ export default function App() {
       />
       <main>
         {page === "home" && <HomePage onReadPost={handleReadPost} />}
-        {page === "blog-detail" && <BlogDetailPage onBack={handleBackToHome} />}
+        {page === "blog-detail" && selectedPostId && <BlogDetailPage postId={selectedPostId} onBack={handleBackToHome} />}
         {page === "profile" && <ProfilePage />}
         {page === "admin" && <AdminGuard onLogin={() => setShowLogin(true)} />}
         {page === "about" && <AboutPage />}
