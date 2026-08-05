@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Zap, Search } from "lucide-react";
+import { Zap, Search, Clock, Eye, Heart } from "lucide-react";
 import api from "../services/api";
 import { BlogPost } from "../types";
 import TagBadge from "../components/TagBadge";
