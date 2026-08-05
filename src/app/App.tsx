@@ -10,24 +10,12 @@ import {
   Monitor, Cpu, CheckCircle2,
   LogOut, Bell, Shield, Lock, KeyRound, AlertTriangle
 } from "lucide-react";
+import { useAuth, AuthUser } from "../context/AuthContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Page = "home" | "blog-detail" | "profile" | "admin" | "about";
 type Role = "admin" | "user";
-
-interface AuthUser {
-  name: string;
-  email: string;
-  avatar: string;
-  role: Role;
-}
-
-// Demo accounts
-const DEMO_ACCOUNTS: (AuthUser & { password: string })[] = [
-  { name: "Nguyễn Văn Dev", email: "admin@devlog.io", password: "admin123", avatar: "NV", role: "admin" },
-  { name: "Trần Minh Khoa", email: "user@devlog.io", password: "user123", avatar: "TK", role: "user" },
-];
 
 interface BlogPost {
   id: number;
@@ -290,27 +278,30 @@ function Avatar({ initials, size = "md", src }: { initials: string; size?: "sm" 
 
 // ─── Login Modal ──────────────────────────────────────────────────────────────
 
-function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: (user: AuthUser) => void }) {
-  const [email, setEmail] = useState("");
+function LoginModal({ onClose }: { onClose: () => void }) {
+  const { login } = useAuth();
+  const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    setTimeout(() => {
-      const account = DEMO_ACCOUNTS.find((a) => a.email === email && a.password === password);
-      if (account) {
-        const { password: _, ...user } = account;
-        onLogin(user);
-        onClose();
-      } else {
-        setError("Email hoặc mật khẩu không đúng.");
-      }
+    try {
+      await login(userName, password);
+      onClose();
+    } catch (err: any) {
+      setError(
+        err.response?.data?.message || 
+        err.response?.data?.Message || 
+        err.message || 
+        "Tên đăng nhập hoặc mật khẩu không chính xác."
+      );
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (
@@ -331,25 +322,24 @@ function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: (user:
           </button>
         </div>
 
-        {/* Demo hint */}
+        {/* Cảnh báo tài khoản */}
         <div className="mb-6 p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-2">
           <p className="text-xs font-semibold text-accent flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5" /> Tài khoản demo
+            <Shield className="w-3.5 h-3.5" /> Hệ thống chính thức
           </p>
-          <div className="text-xs text-muted-foreground space-y-1" style={{ fontFamily: "var(--font-mono)" }}>
-            <p><span className="text-accent">Admin:</span> admin@devlog.io / admin123</p>
-            <p><span className="text-foreground/60">User:</span> user@devlog.io / user123</p>
-          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Nhập tài khoản đăng ký trên hệ thống của bạn để đăng nhập.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Email</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Tên đăng nhập</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@example.com"
+              type="text"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              placeholder="Nhập tên đăng nhập"
               required
               className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
             />
@@ -455,11 +445,15 @@ function Navbar({
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border hover:border-primary/40 hover:bg-secondary transition-all"
               >
-                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-accent">
-                  {user.avatar}
+                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-accent overflow-hidden">
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt={user.userName} className="w-full h-full object-cover" />
+                  ) : (
+                    user.userName.substring(0, 2).toUpperCase()
+                  )}
                 </div>
                 <div className="hidden sm:block text-left">
-                  <p className="text-xs font-medium text-foreground leading-none">{user.name.split(" ").slice(-1)[0]}</p>
+                  <p className="text-xs font-medium text-foreground leading-none">{user.userName}</p>
                   {user.role === "admin" && (
                     <p className="text-[10px] text-primary mt-0.5" style={{ fontFamily: "var(--font-mono)" }}>admin</p>
                   )}
@@ -470,7 +464,7 @@ function Navbar({
               {userMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden z-50">
                   <div className="px-4 py-3 border-b border-border">
-                    <p className="text-sm font-semibold text-foreground">{user.name}</p>
+                    <p className="text-sm font-semibold text-foreground">{user.userName}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                     <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
                       user.role === "admin" ? "bg-primary/15 text-accent" : "bg-secondary text-muted-foreground"
@@ -1526,7 +1520,9 @@ function Footer({ setPage }: { setPage: (p: Page) => void }) {
 
 // ─── Admin Guard ──────────────────────────────────────────────────────────────
 
-function AdminGuard({ user, onLogin }: { user: AuthUser | null; onLogin: () => void }) {
+function AdminGuard({ onLogin }: { onLogin: () => void }) {
+  const { user } = useAuth();
+
   if (!user) {
     return (
       <div className="max-w-lg mx-auto px-4 py-32 text-center">
@@ -1561,7 +1557,7 @@ function AdminGuard({ user, onLogin }: { user: AuthUser | null; onLogin: () => v
           Trang này chỉ dành cho <span className="text-accent font-medium">Admin</span>.
         </p>
         <p className="text-muted-foreground text-sm mb-8">
-          Tài khoản <span className="text-foreground font-medium">{user.name}</span> của bạn không có quyền này.
+          Tài khoản <span className="text-foreground font-medium">{user.userName}</span> của bạn không có quyền này.
         </p>
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary text-sm text-muted-foreground">
           <User className="w-4 h-4" /> Vai trò: Thành viên thường
@@ -1576,14 +1572,14 @@ function AdminGuard({ user, onLogin }: { user: AuthUser | null; onLogin: () => v
 
 export default function App() {
   const [page, setPage] = useState<Page>("home");
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const { user, logout } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
 
   const handleReadPost = () => setPage("blog-detail");
   const handleBackToHome = () => setPage("home");
 
   const handleLogout = () => {
-    setUser(null);
+    logout();
     if (page === "admin") setPage("home");
   };
 
@@ -1600,7 +1596,7 @@ export default function App() {
         {page === "home" && <HomePage onReadPost={handleReadPost} />}
         {page === "blog-detail" && <BlogDetailPage onBack={handleBackToHome} />}
         {page === "profile" && <ProfilePage />}
-        {page === "admin" && <AdminGuard user={user} onLogin={() => setShowLogin(true)} />}
+        {page === "admin" && <AdminGuard onLogin={() => setShowLogin(true)} />}
         {page === "about" && <AboutPage />}
       </main>
       {page !== "admin" && <Footer setPage={setPage} />}
@@ -1608,7 +1604,6 @@ export default function App() {
       {showLogin && (
         <LoginModal
           onClose={() => setShowLogin(false)}
-          onLogin={(u) => setUser(u)}
         />
       )}
     </div>
