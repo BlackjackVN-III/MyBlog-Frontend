@@ -1616,12 +1616,8 @@ export default function App() {
       {showLogin && (
         <LoginModal
           onClose={() => setShowLogin(false)}
-          onSuccess={(role) => {
-            if (role === "admin") {
-              setPage("admin");
-            } else {
-              setPage("profile");
-            }
+          onSuccess={() => {
+            setPage("home");
           }}
         />
       )}
