@@ -461,7 +461,7 @@ function Navbar({
                   {user.avatarUrl ? (
                     <img src={user.avatarUrl} alt={user.userName} className="w-full h-full object-cover" />
                   ) : (
-                    user.userName.substring(0, 2).toUpperCase()
+                    (user.userName || user.email || 'U').substring(0, 2).toUpperCase()
                   )}
                 </div>
                 <div className="hidden sm:block text-left">

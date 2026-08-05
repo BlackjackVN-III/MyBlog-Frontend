@@ -52,6 +52,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Gọi api lấy thông tin profile cá nhân
       const res = await api.get('/api/profile');
       
+      const data = res.data;
+      const mappedUser: AuthUser = {
+        userName: data.userName || data.username || '',
+        email: data.email,
+        bio: data.bio,
+        avatarUrl: data.avatarUrl,
+      };
+
       // Đọc và trích xuất role từ JWT
       const token = localStorage.getItem('accessToken');
       let role: 'admin' | 'user' = 'user';
@@ -62,8 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role = 'admin';
         }
       }
+      mappedUser.role = role;
 
-      setUser({ ...res.data, role });
+      setUser(mappedUser);
     } catch (err) {
       logout();
     } finally {
@@ -88,13 +97,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await api.post('/api/auth/login', { userName, password });
-      const { token, refreshToken, userName: name, email } = res.data;
+      const { token, refreshToken, userName: name1, username: name2, email } = res.data;
       
       localStorage.setItem('accessToken', token);
       localStorage.setItem('refreshToken', refreshToken);
       
       // Cập nhật thông tin cơ bản trước, sau đó lấy thông tin profile đầy đủ (bio, avatar)
-      setUser({ userName: name, email });
+      setUser({ userName: name1 || name2 || userName, email });
       await fetchProfile();
     } catch (err) {
       setIsLoading(false);
