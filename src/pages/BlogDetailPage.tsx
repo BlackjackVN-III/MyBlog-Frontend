@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useSignalR } from "../context/SignalRContext";
 import Avatar from "../components/Avatar";
 import TagBadge from "../components/TagBadge";
 
@@ -214,6 +215,7 @@ export default function BlogDetailPage({
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const { user } = useAuth();
+  const { connection, joinBlogGroup, leaveBlogGroup } = useSignalR();
 
   const fetchPostDetails = async () => {
     setLoading(true);
@@ -237,6 +239,23 @@ export default function BlogDetailPage({
       console.error("Lỗi khi tải bình luận", err);
     }
   };
+
+  // Join post hub group and listen for live comments
+  useEffect(() => {
+    if (postId && connection) {
+      joinBlogGroup(postId);
+
+      connection.on("ReceiveNewComment", (username: string, content: string) => {
+        console.log("ReceiveNewComment event triggered:", { username, content });
+        fetchComments();
+      });
+
+      return () => {
+        connection.off("ReceiveNewComment");
+        leaveBlogGroup(postId);
+      };
+    }
+  }, [postId, connection]);
 
   useEffect(() => {
     if (postId) {
