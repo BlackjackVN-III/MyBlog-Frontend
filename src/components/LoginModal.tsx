@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { KeyRound, X, Shield, Lock, AlertTriangle } from "lucide-react";
+import { KeyRound, X, Shield, Lock, AlertTriangle, UserPlus } from "lucide-react";
 import { useAuth, parseJwt } from "../context/AuthContext";
 
 export default function LoginModal({
@@ -9,8 +9,10 @@ export default function LoginModal({
   onClose: () => void;
   onSuccess?: (role: "admin" | "user") => void;
 }) {
-  const { login } = useAuth();
+  const { login, register } = useAuth();
+  const [isRegister, setIsRegister] = useState(false);
   const [userName, setUserName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,28 +22,34 @@ export default function LoginModal({
     setError("");
     setLoading(true);
     try {
-      await login(userName, password);
+      if (isRegister) {
+        await register(userName, email, password);
+        onSuccess?.("user");
+        onClose();
+      } else {
+        await login(userName, password);
 
-      const token = localStorage.getItem("accessToken");
-      let role: "admin" | "user" = "user";
-      if (token) {
-        const decoded = parseJwt(token);
-        const roleClaim =
-          decoded?.["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
-          decoded?.["role"];
-        if (roleClaim === "Admin" || (Array.isArray(roleClaim) && roleClaim.includes("Admin"))) {
-          role = "admin";
+        const token = localStorage.getItem("accessToken");
+        let role: "admin" | "user" = "user";
+        if (token) {
+          const decoded = parseJwt(token);
+          const roleClaim =
+            decoded?.["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
+            decoded?.["role"];
+          if (roleClaim === "Admin" || (Array.isArray(roleClaim) && roleClaim.includes("Admin"))) {
+            role = "admin";
+          }
         }
-      }
 
-      onSuccess?.(role);
-      onClose();
+        onSuccess?.(role);
+        onClose();
+      }
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
           err.response?.data?.Message ||
           err.message ||
-          "Tên đăng nhập hoặc mật khẩu không chính xác."
+          "Đã xảy ra lỗi, vui lòng kiểm tra lại thông tin."
       );
     } finally {
       setLoading(false);
@@ -57,13 +65,19 @@ export default function LoginModal({
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-              <KeyRound className="w-5 h-5 text-accent" />
+              {isRegister ? (
+                <UserPlus className="w-5 h-5 text-accent" />
+              ) : (
+                <KeyRound className="w-5 h-5 text-accent" />
+              )}
             </div>
             <div>
               <h2 className="font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
-                Đăng nhập
+                {isRegister ? "Đăng ký" : "Đăng nhập"}
               </h2>
-              <p className="text-xs text-muted-foreground">DevLog · Tài khoản cá nhân</p>
+              <p className="text-xs text-muted-foreground">
+                {isRegister ? "Tạo tài khoản mới" : "DevLog · Tài khoản cá nhân"}
+              </p>
             </div>
           </div>
           <button
@@ -74,13 +88,15 @@ export default function LoginModal({
           </button>
         </div>
 
-        {/* Cảnh báo tài khoản */}
+        {/* Cảnh báo bảo mật */}
         <div className="mb-6 p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-2">
           <p className="text-xs font-semibold text-accent flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5" /> Hệ thống chính thức
+            <Shield className="w-3.5 h-3.5" /> {isRegister ? "Yêu cầu bảo mật" : "Hệ thống chính thức"}
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Nhập tài khoản đăng ký trên hệ thống của bạn để đăng nhập.
+            {isRegister
+              ? "Mật khẩu tối thiểu 12 ký tự, bao gồm ít nhất 1 chữ hoa, 1 chữ số và 1 ký tự đặc biệt."
+              : "Nhập tài khoản đăng ký trên hệ thống của bạn để đăng nhập."}
           </p>
         </div>
 
@@ -96,6 +112,21 @@ export default function LoginModal({
               className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
             />
           </div>
+
+          {isRegister && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Địa chỉ Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@example.com"
+                required
+                className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">Mật khẩu</label>
             <input
@@ -111,7 +142,7 @@ export default function LoginModal({
           {error && (
             <div className="flex items-center gap-2 text-red-400 text-sm px-3 py-2 rounded-lg bg-red-400/10">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              {error}
+              <span className="line-clamp-2">{error}</span>
             </div>
           )}
 
@@ -122,12 +153,32 @@ export default function LoginModal({
           >
             {loading ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : isRegister ? (
+              <UserPlus className="w-4 h-4" />
             ) : (
               <Lock className="w-4 h-4" />
             )}
-            {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+            {loading
+              ? isRegister
+                ? "Đang đăng ký..."
+                : "Đang đăng nhập..."
+              : isRegister
+              ? "Đăng ký ngay"
+              : "Đăng nhập"}
           </button>
         </form>
+
+        <div className="mt-6 pt-6 border-t border-border text-center">
+          <button
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setError("");
+            }}
+            className="text-xs text-accent hover:underline font-medium"
+          >
+            {isRegister ? "Đã có tài khoản? Đăng nhập ngay" : "Chưa có tài khoản? Đăng ký ngay"}
+          </button>
+        </div>
       </div>
     </div>
   );

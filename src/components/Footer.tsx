@@ -16,7 +16,7 @@ export default function Footer({ setPage }: { setPage: (p: Page) => void }) {
             </span>
           </button>
           <p className="text-xs text-muted-foreground">
-            © 2025 Nguyễn Văn Dev · Made with React & love
+            © 2026 BlackjackVN · Made with React, .NET Core & love
           </p>
           <div className="flex items-center gap-4">
             {[Github, Twitter, Linkedin].map((Icon, i) => (
