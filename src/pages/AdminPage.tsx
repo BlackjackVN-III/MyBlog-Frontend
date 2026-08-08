@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FileText,
   Eye,
@@ -13,31 +13,231 @@ import {
   Edit3,
   Trash2,
   Zap,
+  X,
+  Upload,
+  Link as LinkIcon,
+  AlertTriangle,
 } from "lucide-react";
-import { POSTS, COMMENTS } from "../mock/data";
+import api from "../services/api";
 import Avatar from "../components/Avatar";
 
+interface Tag {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface AdminPost {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string;
+  content: string;
+  coverImageUrl: string;
+  createdAt: string;
+  authorName: string;
+  tags: Tag[];
+}
+
+const slugify = (text: string) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .replace(/[đĐ]/g, "d")
+    .replace(/([^0-9a-z-\s])/g, "") // Remove special characters
+    .replace(/\s+/g, "-") // Replace spaces with -
+    .replace(/-+/g, "-") // Remove duplicate -
+    .replace(/^-+/, "") // Trim - from start
+    .replace(/-+$/, ""); // Trim - from end
+};
+
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "posts" | "comments">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "posts">("posts");
+  const [posts, setPosts] = useState<AdminPost[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [loading, setLoading] = useState(false);
 
+  // Form state
+  const [showForm, setShowForm] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+
+  // Input states
+  const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [summary, setSummary] = useState("");
+  const [content, setContent] = useState("");
+  const [coverImageUrl, setCoverImageUrl] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const fetchPosts = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/api/blogs", {
+        params: {
+          pageSize: 100, // Load all for management
+        },
+      });
+      const mapped = res.data.map((blog: any) => ({
+        id: blog.id,
+        title: blog.title || "",
+        slug: blog.slug || "",
+        summary: blog.summary || "",
+        content: blog.content || "",
+        coverImageUrl: blog.coverImageUrl || "",
+        createdAt: new Date(blog.createdAt).toLocaleDateString("vi-VN"),
+        authorName: blog.author?.username || "Ẩn danh",
+        tags: blog.tags || [],
+      }));
+      setPosts(mapped);
+    } catch (err) {
+      console.error("Lỗi khi tải bài viết", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTags = async () => {
+    try {
+      const res = await api.get("/api/tags");
+      setTags(res.data);
+    } catch (err) {
+      console.error("Lỗi khi tải tags", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+    fetchTags();
+  }, []);
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTitle(val);
+    if (!editingPostId) {
+      // Auto generate slug during creation
+      setSlug(slugify(val));
+    }
+  };
+
+  const handleUploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Dung lượng ảnh tối đa là 5MB.");
+      return;
+    }
+
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await api.post("/api/upload/image", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setCoverImageUrl(res.data.url);
+    } catch (err) {
+      console.error("Lỗi tải ảnh lên", err);
+      alert("Tải ảnh bìa lên thất bại.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleOpenCreateForm = () => {
+    setEditingPostId(null);
+    setTitle("");
+    setSlug("");
+    setSummary("");
+    setContent("");
+    setCoverImageUrl("");
+    setSelectedTagIds([]);
+    setErrorMsg("");
+    setShowForm(true);
+  };
+
+  const handleOpenEditForm = (post: AdminPost) => {
+    setEditingPostId(post.id);
+    setTitle(post.title);
+    setSlug(post.slug);
+    setSummary(post.summary);
+    setContent(post.content);
+    setCoverImageUrl(post.coverImageUrl);
+    setSelectedTagIds(post.tags.map((t) => t.id));
+    setErrorMsg("");
+    setShowForm(true);
+  };
+
+  const handleToggleTag = (tagId: string) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const handleSubmitForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setFormLoading(true);
+
+    const payload = {
+      title,
+      slug,
+      summary,
+      content,
+      coverImageUrl,
+      tagIds: selectedTagIds,
+    };
+
+    try {
+      if (editingPostId) {
+        await api.put(`/api/blogs/${editingPostId}`, payload);
+      } else {
+        await api.post("/api/blogs", payload);
+      }
+      setShowForm(false);
+      await fetchPosts();
+    } catch (err: any) {
+      setErrorMsg(
+        err.response?.data?.message ||
+          err.response?.data?.Message ||
+          err.message ||
+          "Lưu bài viết thất bại. Hãy kiểm tra các ràng buộc thông tin."
+      );
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeletePost = async (id: string, title: string) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa bài viết "${title}" không?`)) return;
+
+    try {
+      await api.delete(`/api/blogs/${id}`);
+      await fetchPosts();
+    } catch (err: any) {
+      alert("Xóa bài viết thất bại.");
+    }
+  };
+
+  // Stats calculation
+  const totalPostsCount = posts.length;
   const adminStats = [
-    { label: "Tổng bài viết", value: "42", icon: <FileText className="w-5 h-5" />, color: "text-blue-400", bg: "bg-blue-400/10" },
-    { label: "Tổng lượt xem", value: "148K", icon: <Eye className="w-5 h-5" />, color: "text-emerald-400", bg: "bg-emerald-400/10" },
-    { label: "Người dùng", value: "2.3K", icon: <Users className="w-5 h-5" />, color: "text-violet-400", bg: "bg-violet-400/10" },
-    { label: "Bình luận", value: "1.2K", icon: <MessageSquare className="w-5 h-5" />, color: "text-amber-400", bg: "bg-amber-400/10" },
-  ];
-
-  const recentActivity = [
-    { type: "comment", text: "Trần Minh Khoa bình luận bài 'Microservices với Node.js'", time: "5 phút trước", icon: <MessageSquare className="w-4 h-4 text-blue-400" /> },
-    { type: "view", text: "Bài 'PostgreSQL Performance' đạt 5.000 lượt xem", time: "1 giờ trước", icon: <TrendingUp className="w-4 h-4 text-emerald-400" /> },
-    { type: "like", text: "25 người thích bài 'React Server Components'", time: "3 giờ trước", icon: <Heart className="w-4 h-4 text-red-400" /> },
-    { type: "follower", text: "12 người mới theo dõi blog", time: "5 giờ trước", icon: <Users className="w-4 h-4 text-violet-400" /> },
+    { label: "Tổng bài viết", value: totalPostsCount.toString(), icon: <FileText className="w-5 h-5" />, color: "text-blue-400", bg: "bg-blue-400/10" },
+    { label: "Nhãn tags", value: tags.length.toString(), icon: <TrendingUp className="w-5 h-5" />, color: "text-emerald-400", bg: "bg-emerald-400/10" },
+    { label: "Tổng lượt xem", value: "148K (Mock)", icon: <Eye className="w-5 h-5" />, color: "text-violet-400", bg: "bg-violet-400/10" },
+    { label: "Bình luận", value: "1.2K (Mock)", icon: <MessageSquare className="w-5 h-5" />, color: "text-amber-400", bg: "bg-amber-400/10" },
   ];
 
   const tabs = [
     { id: "overview" as const, label: "Tổng quan", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "posts" as const, label: "Bài viết", icon: <FileText className="w-4 h-4" /> },
-    { id: "comments" as const, label: "Bình luận", icon: <MessageSquare className="w-4 h-4" /> },
   ];
 
   return (
@@ -47,7 +247,7 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
             Admin Dashboard
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Quản lý nội dung và theo dõi thống kê</p>
+          <p className="text-muted-foreground text-sm mt-1">Quản lý nội dung và theo dõi thống kê hệ thống</p>
         </div>
         <div className="flex items-center gap-3">
           <button className="relative p-2 rounded-xl hover:bg-secondary text-muted-foreground transition-colors">
@@ -98,21 +298,17 @@ export default function AdminPage() {
             {/* Top posts */}
             <div className="lg:col-span-2 p-6 rounded-2xl bg-card border border-border">
               <h3 className="font-semibold text-foreground mb-5 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-accent" /> Bài viết nổi bật
+                <TrendingUp className="w-4 h-4 text-accent" /> Bài viết gần đây
               </h3>
               <div className="space-y-4">
-                {POSTS.slice(0, 5).map((post, i) => (
+                {posts.slice(0, 5).map((post, i) => (
                   <div key={post.id} className="flex items-center gap-4">
-                    <span className="w-6 text-center text-sm font-bold" style={{ color: i < 3 ? "#6366f1" : "#7a8aaa" }}>
+                    <span className="w-6 text-center text-sm font-bold text-accent">
                       {i + 1}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground line-clamp-1">{post.title}</p>
-                      <p className="text-xs text-muted-foreground">{post.date}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-medium text-foreground">{post.views.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">lượt xem</p>
+                      <p className="text-xs text-muted-foreground">{post.createdAt} · {post.authorName}</p>
                     </div>
                   </div>
                 ))}
@@ -124,18 +320,10 @@ export default function AdminPage() {
               <h3 className="font-semibold text-foreground mb-5 flex items-center gap-2">
                 <Zap className="w-4 h-4 text-accent" /> Hoạt động gần đây
               </h3>
-              <div className="space-y-4">
-                {recentActivity.map((a, i) => (
-                  <div key={i} className="flex gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-                      {a.icon}
-                    </div>
-                    <div>
-                      <p className="text-xs text-foreground/80 leading-snug">{a.text}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{a.time}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="space-y-4 text-sm text-muted-foreground">
+                <p>· Bài viết mới nhất vừa cập nhật.</p>
+                <p>· Tín hiệu kết nối cơ sở dữ liệu ổn định.</p>
+                <p>· Trạng thái caching Redis bình thường.</p>
               </div>
             </div>
           </div>
@@ -145,77 +333,216 @@ export default function AdminPage() {
       {activeTab === "posts" && (
         <div className="rounded-2xl bg-card border border-border overflow-hidden">
           <div className="flex items-center justify-between p-5 border-b border-border">
-            <h3 className="font-semibold text-foreground">Tất cả bài viết ({POSTS.length})</h3>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">
+            <h3 className="font-semibold text-foreground">Tất cả bài viết ({posts.length})</h3>
+            <button
+              onClick={handleOpenCreateForm}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
               <Plus className="w-4 h-4" /> Viết bài mới
             </button>
           </div>
-          <div className="divide-y divide-border">
-            {POSTS.map((post) => (
-              <div key={post.id} className="flex items-center gap-4 p-4 hover:bg-secondary/50 transition-colors">
-                <img src={post.cover} alt={post.title} className="w-16 h-12 rounded-lg object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground line-clamp-1">{post.title}</p>
-                  <div className="flex items-center gap-3 mt-1">
-                    {post.tags.slice(0, 2).map((t) => (
-                      <span key={t} className="text-xs text-accent" style={{ fontFamily: "var(--font-mono)" }}>#{t}</span>
-                    ))}
+          {loading && posts.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              <span className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block mr-2 align-middle" />
+              Đang tải danh sách bài viết...
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              Chưa có bài viết nào trong cơ sở dữ liệu.
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {posts.map((post) => (
+                <div key={post.id} className="flex items-center gap-4 p-4 hover:bg-secondary/50 transition-colors">
+                  <img
+                    src={post.coverImageUrl || "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=85"}
+                    alt={post.title}
+                    className="w-16 h-12 rounded-lg object-cover flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground line-clamp-1">{post.title}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <span className="text-[10px] text-muted-foreground">{post.createdAt} · {post.authorName}</span>
+                      {post.tags.map((t) => (
+                        <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-accent">
+                          #{t.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => handleOpenEditForm(post)}
+                      className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-accent transition-colors"
+                      title="Sửa bài"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeletePost(post.id, post.title)}
+                      className="p-2 rounded-lg hover:bg-red-400/10 text-muted-foreground hover:text-red-400 transition-colors"
+                      title="Xóa bài"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                <div className="hidden sm:flex items-center gap-6 text-xs text-muted-foreground flex-shrink-0">
-                  <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{post.views.toLocaleString()}</span>
-                  <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{post.likes}</span>
-                  <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{post.comments}</span>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="hidden sm:inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-400/10 text-emerald-400">
-                    <CheckCircle2 className="w-3 h-3" /> Xuất bản
-                  </span>
-                  <button className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-accent transition-colors">
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 rounded-lg hover:bg-red-400/10 text-muted-foreground hover:text-red-400 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {activeTab === "comments" && (
-        <div className="rounded-2xl bg-card border border-border overflow-hidden">
-          <div className="p-5 border-b border-border">
-            <h3 className="font-semibold text-foreground">Bình luận gần đây</h3>
-          </div>
-          <div className="divide-y divide-border">
-            {COMMENTS.flatMap((c) => [
-              { ...c, postTitle: POSTS[0].title, type: "comment" },
-              ...c.replies.map((r) => ({ ...r, postTitle: POSTS[0].title, type: "reply", replies: [] })),
-            ]).map((item, i) => (
-              <div key={i} className="flex gap-4 p-4 hover:bg-secondary/50 transition-colors">
-                <Avatar initials={item.avatar} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-foreground">{item.author}</span>
-                    {item.type === "reply" && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-accent">Phản hồi</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-1 mb-1">Bài: {item.postTitle}</p>
-                  <p className="text-sm text-foreground/80 line-clamp-2">{item.content}</p>
+      {/* Editor Modal overlay */}
+      {showForm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: "rgba(15,35,24,0.55)", backdropFilter: "blur(8px)" }}
+        >
+          <div className="w-full max-w-2xl rounded-3xl border border-border bg-card p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
+                {editingPostId ? "Chỉnh sửa bài viết" : "Viết bài mới"}
+              </h2>
+              <button
+                onClick={() => setShowForm(false)}
+                className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {errorMsg && (
+              <div className="mb-4 text-sm text-red-400 p-3 rounded-xl bg-red-400/10 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> {errorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitForm} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Tiêu đề bài viết</label>
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onChange={handleTitleChange}
+                  placeholder="Nhập tiêu đề hấp dẫn..."
+                  className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Đường dẫn tĩnh (Slug)</label>
+                <input
+                  type="text"
+                  required
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  placeholder="vi-du-tieu-de-bai-viet"
+                  className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Tóm tắt ngắn (Summary)</label>
+                <textarea
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  placeholder="Nhập nội dung tóm tắt xem trước..."
+                  rows={2}
+                  maxLength={500}
+                  className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Ảnh bìa (Cover Image)</label>
+                <div className="flex gap-3 items-center">
+                  <input
+                    type="text"
+                    value={coverImageUrl}
+                    onChange={(e) => setCoverImageUrl(e.target.value)}
+                    placeholder="https://example.com/cover.jpg"
+                    className="flex-1 px-4 py-3 rounded-xl bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
+                  />
+                  <label className="flex items-center gap-2 px-4 py-3 bg-primary text-white text-xs font-semibold rounded-xl cursor-pointer hover:bg-primary/90 transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    {uploadingImage ? "Đang tải..." : "Tải ảnh lên"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleUploadCover}
+                      disabled={uploadingImage}
+                    />
+                  </label>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button className="p-2 rounded-lg hover:bg-emerald-400/10 text-muted-foreground hover:text-emerald-400 transition-colors">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 rounded-lg hover:bg-red-400/10 text-muted-foreground hover:text-red-400 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                {coverImageUrl && (
+                  <img
+                    src={coverImageUrl}
+                    alt="Cover preview"
+                    className="mt-3 w-40 h-24 object-cover rounded-xl border border-border"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Chọn nhãn (Tags)</label>
+                <div className="flex flex-wrap gap-2 p-3 bg-secondary rounded-xl border border-border">
+                  {tags.map((t) => {
+                    const checked = selectedTagIds.includes(t.id);
+                    return (
+                      <button
+                        type="button"
+                        key={t.id}
+                        onClick={() => handleToggleTag(t.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          checked
+                            ? "bg-primary/20 border-primary text-accent"
+                            : "bg-card border-border text-muted-foreground hover:border-primary/30"
+                        }`}
+                      >
+                        {checked ? "✓ " : ""}#{t.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Nội dung bài viết (Markdown/HTML)</label>
+                <textarea
+                  required
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Viết nội dung bài viết ở đây..."
+                  rows={8}
+                  className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors resize-y"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-border flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-5 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-secondary transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={formLoading || uploadingImage}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-60 transition-colors flex items-center gap-1.5"
+                >
+                  {formLoading ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  {formLoading ? "Đang lưu..." : "Lưu bài viết"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
