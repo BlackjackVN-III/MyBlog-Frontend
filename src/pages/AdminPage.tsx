@@ -139,10 +139,8 @@ export default function AdminPage() {
     formData.append("file", file);
 
     try {
-      const res = await api.post("/api/upload/image", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setCoverImageUrl(res.data.url);
+      const res = await api.post("/api/upload/image", formData);
+      setCoverImageUrl(res.data.url || res.data.Url);
     } catch (err) {
       console.error("Lỗi tải ảnh lên", err);
       alert("Tải ảnh bìa lên thất bại.");

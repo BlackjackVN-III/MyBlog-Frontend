@@ -116,12 +116,8 @@ export default function ProfilePage() {
     formData.append("file", file);
 
     try {
-      const res = await api.post("/api/profile/avatar", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-      const newAvatarUrl = res.data.avatarUrl;
+      const res = await api.post("/api/profile/avatar", formData);
+      const newAvatarUrl = res.data.avatarUrl || res.data.AvatarUrl;
       updateUser({ avatarUrl: newAvatarUrl });
       setSuccessMsg("Cập nhật ảnh đại diện thành công!");
     } catch (err: any) {
