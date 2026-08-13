@@ -28,15 +28,22 @@ interface FrontendComment {
   parentCommentId?: string | null;
 }
 
-const buildCommentTree = (flatComments: any[]): FrontendComment[] => {
+const buildCommentTree = (
+  flatComments: any[],
+  currentUsername?: string,
+  currentUserAvatar?: string
+): FrontendComment[] => {
   const commentMap: { [key: string]: FrontendComment } = {};
 
   flatComments.forEach((c) => {
+    const authorName = c.user?.username || "Ẩn danh";
+    const isSelf =
+      currentUsername && authorName.toLowerCase() === currentUsername.toLowerCase();
     commentMap[c.id] = {
       id: c.id,
-      author: c.user?.username || "Ẩn danh",
-      avatar: (c.user?.username || "U").substring(0, 2).toUpperCase(),
-      avatarUrl: c.user?.avatarUrl || "",
+      author: authorName,
+      avatar: authorName.substring(0, 2).toUpperCase(),
+      avatarUrl: isSelf ? currentUserAvatar : (c.user?.avatarUrl || ""),
       date:
         new Date(c.createdAt).toLocaleDateString("vi-VN") +
         " " +
@@ -233,7 +240,7 @@ export default function BlogDetailPage({
   const fetchComments = async () => {
     try {
       const commentsRes = await api.get(`/api/comments/post/${postId}`);
-      const tree = buildCommentTree(commentsRes.data);
+      const tree = buildCommentTree(commentsRes.data, user?.userName, user?.avatarUrl);
       setComments(tree);
     } catch (err) {
       console.error("Lỗi khi tải bình luận", err);
@@ -308,6 +315,10 @@ export default function BlogDetailPage({
   const formattedDate = new Date(post.createdAt).toLocaleDateString("vi-VN");
   const readTime = `${Math.ceil((post.content || "").split(/\s+/).length / 200)} phút đọc`;
 
+  const authorName = post.author?.username || "";
+  const isAuthorSelf = user && authorName.toLowerCase() === user.userName.toLowerCase();
+  const authorAvatarUrl = isAuthorSelf ? user.avatarUrl : post.author?.avatarUrl;
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <button
@@ -349,7 +360,7 @@ export default function BlogDetailPage({
           <Avatar
             initials={(post.author?.username || "U").substring(0, 2).toUpperCase()}
             size="md"
-            src={post.author?.avatarUrl}
+            src={authorAvatarUrl}
           />
           <div>
             <p className="text-sm font-semibold text-foreground">{post.author?.username || "Ẩn danh"}</p>

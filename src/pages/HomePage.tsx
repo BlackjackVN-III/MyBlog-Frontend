@@ -4,8 +4,10 @@ import api from "../services/api";
 import { BlogPost } from "../types";
 import TagBadge from "../components/TagBadge";
 import PostCard from "../components/PostCard";
+import { useAuth } from "../context/AuthContext";
 
 export default function HomePage({ onReadPost }: { onReadPost: (id: string | number) => void }) {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [activeTagSlug, setActiveTagSlug] = useState("");
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -17,13 +19,15 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
   const [isDecsending, setIsDecsending] = useState(true);
 
   const mapBlogToFrontend = (blog: any): BlogPost => {
+    const authorName = blog.author?.username || "Ẩn danh";
+    const isSelf = user && authorName.toLowerCase() === user.userName.toLowerCase();
     return {
       id: blog.id,
       title: blog.title || "",
       excerpt: blog.summary || "",
       content: blog.content || "",
-      author: blog.author?.username || "Ẩn danh",
-      authorAvatar: blog.author?.avatarUrl || "",
+      author: authorName,
+      authorAvatar: isSelf ? user.avatarUrl : (blog.author?.avatarUrl || ""),
       date: new Date(blog.createdAt).toLocaleDateString("vi-VN"),
       readTime: `${Math.ceil((blog.content || "").split(/\s+/).length / 200)} phút đọc`,
       views: 0,
