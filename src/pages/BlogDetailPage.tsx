@@ -270,6 +270,14 @@ export default function BlogDetailPage({
     }
   }, [postId]);
 
+  useEffect(() => {
+    if (post && typeof window !== "undefined" && (window as any).hljs) {
+      setTimeout(() => {
+        (window as any).hljs.highlightAll();
+      }, 50);
+    }
+  }, [post]);
+
   const handleSendComment = async () => {
     if (!user) {
       alert("Vui lòng đăng nhập để bình luận.");

@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Bold, Italic, List, ListOrdered, Quote, Heading1, Heading2, Redo, Undo } from "lucide-react";
+import { Bold, Italic, List, ListOrdered, Quote, Heading1, Heading2, Redo, Undo, Code } from "lucide-react";
 
 export default function RichTextEditor({
   value,
@@ -105,6 +105,16 @@ export default function RichTextEditor({
           title="Trích dẫn"
         >
           <Quote className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          className={`p-2 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors ${
+            editor.isActive("codeBlock") ? "bg-secondary text-accent" : ""
+          }`}
+          title="Khối mã nguồn (Code Block)"
+        >
+          <Code className="w-4 h-4" />
         </button>
         <div className="w-px h-6 bg-border mx-1 my-auto" />
         <button
