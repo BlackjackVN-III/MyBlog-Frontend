@@ -38,20 +38,21 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
     };
   };
 
-  const [featuredPost, setFeaturedPost] = useState<BlogPost | null>(null);
+  const [featuredPosts, setFeaturedPosts] = useState<BlogPost[]>([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
-  // Load featured post once on mount
+  // Load featured posts once on mount
   useEffect(() => {
     const fetchFeatured = async () => {
       try {
         const res = await api.get("/api/blogs", {
           params: {
             pageNumber: 1,
-            pageSize: 1,
+            pageSize: 5,
           },
         });
         if (res.data && res.data.length > 0) {
-          setFeaturedPost(mapBlogToFrontend(res.data[0]));
+          setFeaturedPosts(res.data.map(mapBlogToFrontend));
         }
       } catch (err) {
         console.error("Lỗi khi tải bài viết nổi bật", err);
@@ -59,6 +60,15 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
     };
     fetchFeatured();
   }, [user]);
+
+  // Auto-slide featured posts every 5 seconds
+  useEffect(() => {
+    if (featuredPosts.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % featuredPosts.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [featuredPosts]);
 
   // Load tags
   useEffect(() => {
@@ -134,39 +144,68 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
       </div>
 
       {/* Featured */}
-      {featuredPost && (
-        <div
-          className="relative rounded-3xl overflow-hidden mb-14 cursor-pointer group"
-          onClick={() => onReadPost(featuredPost.id)}
-        >
-          <div className="relative h-80 sm:h-96">
+      {featuredPosts.length > 0 && (
+        <div className="relative rounded-3xl overflow-hidden mb-14 cursor-pointer group">
+          {/* Slide image wrapper */}
+          <div
+            className="relative h-80 sm:h-96"
+            onClick={() => onReadPost(featuredPosts[currentSlide].id)}
+          >
             <img
-              src={featuredPost.cover}
-              alt={featuredPost.title}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              key={`img-${currentSlide}`}
+              src={featuredPosts[currentSlide].cover}
+              alt={featuredPosts[currentSlide].title}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 animate-fade-in"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-card/95 via-card/60 to-transparent" />
           </div>
-          <div className="absolute inset-0 p-8 sm:p-12 flex flex-col justify-end sm:justify-center sm:max-w-xl">
-            <div className="inline-flex items-center gap-2 mb-4">
+
+          {/* Slide content wrapper */}
+          <div
+            key={`content-${currentSlide}`}
+            className="absolute inset-0 p-8 sm:p-12 flex flex-col justify-end sm:justify-center sm:max-w-xl pointer-events-none animate-fade-in"
+          >
+            <div className="inline-flex items-center gap-2 mb-4 pointer-events-auto">
               <span className="px-3 py-1 rounded-full bg-primary text-xs font-medium text-white">Featured</span>
-              {featuredPost.tags.slice(0, 2).map((t) => (
+              {featuredPosts[currentSlide].tags.slice(0, 2).map((t) => (
                 <TagBadge key={t} tag={t} />
               ))}
             </div>
             <h2
-              className="text-2xl sm:text-3xl font-bold text-foreground mb-3 leading-tight"
+              className="text-2xl sm:text-3xl font-bold text-foreground mb-3 leading-tight pointer-events-auto"
               style={{ fontFamily: "var(--font-display)" }}
+              onClick={() => onReadPost(featuredPosts[currentSlide].id)}
             >
-              {featuredPost.title}
+              {featuredPosts[currentSlide].title}
             </h2>
-            <p className="text-muted-foreground text-sm mb-5 line-clamp-2">{featuredPost.excerpt}</p>
+            <p className="text-muted-foreground text-sm mb-5 line-clamp-2">{featuredPosts[currentSlide].excerpt}</p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{featuredPost.readTime}</span>
-              <span className="flex items-center gap-1"><Eye className="w-4 h-4" />{featuredPost.views.toLocaleString()} lượt xem</span>
-              <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-red-400" />{featuredPost.likes}</span>
+              <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{featuredPosts[currentSlide].readTime}</span>
+              <span className="flex items-center gap-1"><Eye className="w-4 h-4" />{featuredPosts[currentSlide].views.toLocaleString()} lượt xem</span>
+              <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-red-400" />{featuredPosts[currentSlide].likes}</span>
             </div>
           </div>
+
+          {/* Dots Indicator */}
+          {featuredPosts.length > 1 && (
+            <div className="absolute bottom-6 right-8 flex gap-2 z-10">
+              {featuredPosts.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentSlide(index);
+                  }}
+                  className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                    index === currentSlide
+                      ? "bg-primary w-6"
+                      : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                  }`}
+                  title={`Slide ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
