@@ -271,7 +271,7 @@ export default function BlogDetailPage({
   }, [postId]);
 
   useEffect(() => {
-    if (post && typeof window !== "undefined" && (window as any).hljs) {
+    if (!loading && post && typeof window !== "undefined" && (window as any).hljs) {
       setTimeout(() => {
         const blocks = document.querySelectorAll("pre code");
         blocks.forEach((block) => {
@@ -279,7 +279,7 @@ export default function BlogDetailPage({
         });
       }, 50);
     }
-  }, [post]);
+  }, [post, loading]);
 
   const handleSendComment = async () => {
     if (!user) {
