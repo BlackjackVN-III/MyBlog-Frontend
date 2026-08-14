@@ -38,6 +38,28 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
     };
   };
 
+  const [featuredPost, setFeaturedPost] = useState<BlogPost | null>(null);
+
+  // Load featured post once on mount
+  useEffect(() => {
+    const fetchFeatured = async () => {
+      try {
+        const res = await api.get("/api/blogs", {
+          params: {
+            pageNumber: 1,
+            pageSize: 1,
+          },
+        });
+        if (res.data && res.data.length > 0) {
+          setFeaturedPost(mapBlogToFrontend(res.data[0]));
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải bài viết nổi bật", err);
+      }
+    };
+    fetchFeatured();
+  }, [user]);
+
   // Load tags
   useEffect(() => {
     const fetchTags = async () => {
@@ -112,15 +134,15 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
       </div>
 
       {/* Featured */}
-      {posts[0] && (
+      {featuredPost && (
         <div
           className="relative rounded-3xl overflow-hidden mb-14 cursor-pointer group"
-          onClick={() => onReadPost(posts[0].id)}
+          onClick={() => onReadPost(featuredPost.id)}
         >
           <div className="relative h-80 sm:h-96">
             <img
-              src={posts[0].cover}
-              alt={posts[0].title}
+              src={featuredPost.cover}
+              alt={featuredPost.title}
               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-card/95 via-card/60 to-transparent" />
@@ -128,7 +150,7 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
           <div className="absolute inset-0 p-8 sm:p-12 flex flex-col justify-end sm:justify-center sm:max-w-xl">
             <div className="inline-flex items-center gap-2 mb-4">
               <span className="px-3 py-1 rounded-full bg-primary text-xs font-medium text-white">Featured</span>
-              {posts[0].tags.slice(0, 2).map((t) => (
+              {featuredPost.tags.slice(0, 2).map((t) => (
                 <TagBadge key={t} tag={t} />
               ))}
             </div>
@@ -136,13 +158,13 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
               className="text-2xl sm:text-3xl font-bold text-foreground mb-3 leading-tight"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              {posts[0].title}
+              {featuredPost.title}
             </h2>
-            <p className="text-muted-foreground text-sm mb-5 line-clamp-2">{posts[0].excerpt}</p>
+            <p className="text-muted-foreground text-sm mb-5 line-clamp-2">{featuredPost.excerpt}</p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{posts[0].readTime}</span>
-              <span className="flex items-center gap-1"><Eye className="w-4 h-4" />{posts[0].views.toLocaleString()} lượt xem</span>
-              <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-red-400" />{posts[0].likes}</span>
+              <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{featuredPost.readTime}</span>
+              <span className="flex items-center gap-1"><Eye className="w-4 h-4" />{featuredPost.views.toLocaleString()} lượt xem</span>
+              <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-red-400" />{featuredPost.likes}</span>
             </div>
           </div>
         </div>
