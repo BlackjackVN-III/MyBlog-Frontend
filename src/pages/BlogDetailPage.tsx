@@ -273,7 +273,10 @@ export default function BlogDetailPage({
   useEffect(() => {
     if (post && typeof window !== "undefined" && (window as any).hljs) {
       setTimeout(() => {
-        (window as any).hljs.highlightAll();
+        const blocks = document.querySelectorAll("pre code");
+        blocks.forEach((block) => {
+          (window as any).hljs.highlightElement(block);
+        });
       }, 50);
     }
   }, [post]);
