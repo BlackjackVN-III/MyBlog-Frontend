@@ -1,5 +1,5 @@
 import React from "react";
-import { Code2, Github, Twitter, Linkedin } from "lucide-react";
+import { Code2, Github, Facebook } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export default function Footer() {
@@ -19,11 +19,24 @@ export default function Footer() {
             © 2026 BlackjackVN · Made with React, .NET Core & love
           </p>
           <div className="flex items-center gap-4">
-            {[Github, Twitter, Linkedin].map((Icon, i) => (
-              <a key={i} href="#" className="text-muted-foreground hover:text-accent transition-colors">
-                <Icon className="w-4 h-4" />
-              </a>
-            ))}
+            <a
+              href="https://github.com/BlackjackVN-III"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-accent transition-colors"
+              title="GitHub"
+            >
+              <Github className="w-4 h-4" />
+            </a>
+            <a
+              href="https://www.facebook.com/cuong.tranquoc.357/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-accent transition-colors"
+              title="Facebook"
+            >
+              <Facebook className="w-4 h-4" />
+            </a>
           </div>
         </div>
       </div>
