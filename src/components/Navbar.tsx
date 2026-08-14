@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Home,
   Info,
@@ -13,57 +14,51 @@ import {
   Menu,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { Page } from "../types";
 
 export default function Navbar({
-  page,
-  setPage,
   onLogin,
 }: {
-  page: Page;
-  setPage: (p: Page) => void;
   onLogin: () => void;
 }) {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
-  const baseLinks: { label: string; page: Page; icon: React.ReactNode }[] = [
-    { label: "Blog", page: "home", icon: <Home className="w-4 h-4" /> },
-    { label: "About Me", page: "about", icon: <Info className="w-4 h-4" /> },
-    { label: "Profile", page: "profile", icon: <User className="w-4 h-4" /> },
+  const baseLinks = [
+    { label: "Blog", to: "/", icon: <Home className="w-4 h-4" /> },
+    { label: "About Me", to: "/about", icon: <Info className="w-4 h-4" /> },
+    { label: "Profile", to: "/profile", icon: <User className="w-4 h-4" /> },
   ];
 
-  const adminLink = { label: "Admin", page: "admin" as Page, icon: <Settings className="w-4 h-4" /> };
+  const adminLink = { label: "Admin", to: "/admin", icon: <Settings className="w-4 h-4" /> };
   const links = user?.role === "admin" ? [...baseLinks, adminLink] : baseLinks;
 
   const handleLogout = () => {
     logout();
-    setPage("home");
+    navigate({ to: "/" });
   };
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border backdrop-blur-xl" style={{ background: "rgba(240,250,244,0.92)" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        <button onClick={() => setPage("home")} className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Code2 className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
             DevLog<span className="text-primary">.</span>
           </span>
-        </button>
+        </Link>
 
         <div className="hidden md:flex items-center gap-1">
           {links.map((l) => (
-            <button
-              key={l.page}
-              onClick={() => setPage(l.page)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                page === l.page
-                  ? "bg-primary/15 text-accent"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
+            <Link
+              key={l.to}
+              to={l.to}
+              activeProps={{ className: "bg-primary/15 text-accent" }}
+              inactiveProps={{ className: "text-muted-foreground hover:text-foreground hover:bg-secondary" }}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200"
             >
               {l.icon}
               {l.label}
@@ -72,7 +67,7 @@ export default function Navbar({
                   ADM
                 </span>
               )}
-            </button>
+            </Link>
           ))}
         </div>
 
@@ -112,13 +107,21 @@ export default function Navbar({
                     </div>
                   </div>
                   <div className="p-2">
-                    <button onClick={() => { setPage("profile"); setUserMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+                    <Link
+                      to="/profile"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                    >
                       <User className="w-4 h-4" /> Trang cá nhân
-                    </button>
+                    </Link>
                     {user.role === "admin" && (
-                      <button onClick={() => { setPage("admin"); setUserMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+                      <Link
+                        to="/admin"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                      >
                         <Settings className="w-4 h-4" /> Admin Dashboard
-                      </button>
+                      </Link>
                     )}
                     <button
                       onClick={() => { handleLogout(); setUserMenuOpen(false); }}
@@ -152,15 +155,16 @@ export default function Navbar({
       {menuOpen && (
         <div className="md:hidden border-t border-border bg-card px-4 py-3 flex flex-col gap-1">
           {links.map((l) => (
-            <button
-              key={l.page}
-              onClick={() => { setPage(l.page); setMenuOpen(false); }}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                page === l.page ? "bg-primary/15 text-accent" : "text-muted-foreground hover:bg-secondary"
-              }`}
+            <Link
+              key={l.to}
+              to={l.to}
+              onClick={() => setMenuOpen(false)}
+              activeProps={{ className: "bg-primary/15 text-accent" }}
+              inactiveProps={{ className: "text-muted-foreground hover:bg-secondary" }}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors"
             >
               {l.icon} {l.label}
-            </button>
+            </Link>
           ))}
           {!user && (
             <button
