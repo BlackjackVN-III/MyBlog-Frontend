@@ -73,15 +73,17 @@ function CommentItem({
   comment,
   onReload,
   postId,
+  depth = 0,
 }: {
   comment: FrontendComment;
   onReload: () => void;
   postId: string;
+  depth?: number;
 }) {
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [liked, setLiked] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(depth > 0);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
@@ -110,21 +112,25 @@ function CommentItem({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-4">
-        <Avatar initials={comment.avatar} size="md" src={comment.avatarUrl} />
-        <div className="flex-1">
-          <div className="bg-secondary rounded-2xl p-4">
+    <div className="space-y-3">
+      <div className="flex gap-3">
+        <Avatar
+          initials={comment.avatar}
+          size={depth > 0 ? "sm" : "md"}
+          src={comment.avatarUrl}
+        />
+        <div className="flex-1 min-w-0">
+          <div className={`${depth > 0 ? "bg-muted/40" : "bg-secondary"} rounded-2xl p-3 md:p-4`}>
             <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold text-sm text-foreground">{comment.author}</span>
-              <span className="text-xs text-muted-foreground">{comment.date}</span>
+              <span className="font-semibold text-xs md:text-sm text-foreground truncate max-w-[120px] md:max-w-xs">{comment.author}</span>
+              <span className="text-[10px] md:text-xs text-muted-foreground">{comment.date}</span>
             </div>
-            <p className="text-sm text-foreground/90 leading-relaxed">{comment.content}</p>
+            <p className="text-xs md:text-sm text-foreground/90 leading-relaxed break-words">{comment.content}</p>
           </div>
           <div className="flex items-center gap-4 mt-2 ml-2">
             <button
               onClick={() => setLiked(!liked)}
-              className={`flex items-center gap-1 text-xs transition-colors ${
+              className={`flex items-center gap-1 text-[10px] md:text-xs transition-colors ${
                 liked ? "text-accent" : "text-muted-foreground hover:text-accent"
               }`}
             >
@@ -133,15 +139,15 @@ function CommentItem({
             </button>
             <button
               onClick={() => setShowReply(!showReply)}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent transition-colors"
+              className="flex items-center gap-1 text-[10px] md:text-xs text-muted-foreground hover:text-accent transition-colors"
             >
               <Reply className="w-3 h-3" />
               Phản hồi
             </button>
-            {comment.replies.length > 0 && (
+            {comment.replies.length > 0 && depth === 0 && (
               <button
                 onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-1 text-xs text-accent"
+                className="flex items-center gap-1 text-[10px] md:text-xs text-accent"
               >
                 <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
                 {expanded ? "Ẩn" : `${comment.replies.length} phản hồi`}
@@ -151,37 +157,8 @@ function CommentItem({
         </div>
       </div>
 
-      {/* Replies */}
-      {expanded && comment.replies.length > 0 && (
-        <div className="ml-14 space-y-3">
-          {comment.replies.map((r) => (
-            <div key={r.id} className="flex gap-3">
-              <Avatar initials={r.avatar} size="sm" src={r.avatarUrl} />
-              <div className="flex-1">
-                <div className="bg-muted rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-xs text-foreground">{r.author}</span>
-                    <span className="text-xs text-muted-foreground">{r.date}</span>
-                  </div>
-                  <p className="text-sm text-foreground/90">{r.content}</p>
-                </div>
-                <div className="flex items-center gap-3 mt-1.5 ml-2">
-                  <button
-                    onClick={() => {}}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent transition-colors"
-                  >
-                    <ThumbsUp className="w-3 h-3" />
-                    {r.likes}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {showReply && (
-        <div className="ml-14 flex gap-3">
+        <div className={`${depth > 0 ? "ml-8" : "ml-10 md:ml-12"} flex gap-2 md:gap-3`}>
           <Avatar
             initials={(user?.userName || "U").substring(0, 2).toUpperCase()}
             size="sm"
@@ -191,18 +168,33 @@ function CommentItem({
             <input
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Viết phản hồi..."
+              placeholder={`Trả lời ${comment.author}...`}
               disabled={loading}
-              className="flex-1 px-4 py-2 rounded-xl bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+              className="flex-1 px-3 py-1.5 md:px-4 md:py-2 rounded-xl bg-secondary border border-border text-xs md:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
             />
             <button
               onClick={handleSendReply}
               disabled={loading}
-              className="px-4 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 transition-colors flex items-center gap-1 disabled:opacity-60"
+              className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl bg-primary text-white text-xs md:text-sm hover:bg-primary/90 transition-colors flex items-center gap-1 disabled:opacity-60"
             >
               <Send className="w-3 h-3" />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Recursive Replies */}
+      {((depth > 0) || expanded) && comment.replies.length > 0 && (
+        <div className={`${depth > 0 ? "ml-6 md:ml-8" : "ml-8 md:ml-12"} pl-3 md:pl-4 border-l border-border/50 space-y-4`}>
+          {comment.replies.map((reply) => (
+            <CommentItem
+              key={reply.id}
+              comment={reply}
+              onReload={onReload}
+              postId={postId}
+              depth={depth + 1}
+            />
+          ))}
         </div>
       )}
     </div>
