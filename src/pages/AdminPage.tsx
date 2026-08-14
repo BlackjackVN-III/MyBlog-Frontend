@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import api from "../services/api";
 import Avatar from "../components/Avatar";
+import RichTextEditor from "../components/RichTextEditor";
 
 interface Tag {
   id: string;
@@ -508,14 +509,10 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Nội dung bài viết (Markdown/HTML)</label>
-                <textarea
-                  required
+                <label className="block text-sm font-medium text-foreground mb-2">Nội dung bài viết</label>
+                <RichTextEditor
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Viết nội dung bài viết ở đây..."
-                  rows={8}
-                  className="w-full px-4 py-3 rounded-xl bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors resize-y"
+                  onChange={(html) => setContent(html)}
                 />
               </div>
 
