@@ -234,19 +234,31 @@
   animation: fadeIn 0.8s ease-in-out;
 }
 
-/* Editor Code Block Styles */
-.ProseMirror pre {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  font-family: var(--font-mono);
-  padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  margin: 1rem 0;
-  overflow-x: auto;
+/* Editor & Reader Code Block Styles */
+.ProseMirror pre, .prose pre {
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
+  font-family: var(--font-mono) !important;
+  padding: 1rem 1.25rem !important;
+  border-radius: 0.75rem !important;
+  margin: 1.5rem 0 !important;
+  overflow-x: auto !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
-.ProseMirror code {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+
+.ProseMirror code, .prose code {
+  font-family: var(--font-mono) !important;
+  font-size: 0.875rem !important;
+}
+
+/* Inline Code Styles (e.g. `const x = 5`) */
+.ProseMirror :not(pre) > code, .prose :not(pre) > code {
+  background: var(--secondary) !important;
+  color: var(--secondary-foreground) !important;
+  padding: 0.2rem 0.4rem !important;
+  border-radius: 0.25rem !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.875rem !important;
 }
 
 
