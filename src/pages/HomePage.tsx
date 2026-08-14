@@ -15,7 +15,7 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
   const [loading, setLoading] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [sortBy, setSortBy] = useState("CreatedAt");
+  const [sortBy, setSortBy] = useState("");
   const [isDecsending, setIsDecsending] = useState(true);
 
   const mapBlogToFrontend = (blog: any): BlogPost => {
@@ -210,17 +210,53 @@ export default function HomePage({ onReadPost }: { onReadPost: (id: string | num
       )}
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-8">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm bài viết..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
-          />
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-8">
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-1 max-w-xl">
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Tìm kiếm bài viết..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
+            />
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="w-full sm:w-48">
+            <select
+              value={
+                sortBy === "Title"
+                  ? isDecsending
+                    ? "title-desc"
+                    : "title-asc"
+                  : "newest"
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "newest") {
+                  setSortBy("");
+                  setIsDecsending(true);
+                } else if (val === "title-asc") {
+                  setSortBy("Title");
+                  setIsDecsending(false);
+                } else if (val === "title-desc") {
+                  setSortBy("Title");
+                  setIsDecsending(true);
+                }
+              }}
+              className="w-full px-4 py-2.5 rounded-xl bg-card border border-border text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
+            >
+              <option value="newest">Mới nhất</option>
+              <option value="title-asc">Tiêu đề: A → Z</option>
+              <option value="title-desc">Tiêu đề: Z → A</option>
+            </select>
+          </div>
         </div>
+
+        {/* Tags badges */}
         <div className="flex flex-wrap gap-2 items-center">
           <TagBadge tag="Tất cả" active={activeTagSlug === ""} onClick={() => setActiveTagSlug("")} />
           {tags.map((t) => (
