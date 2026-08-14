@@ -56,7 +56,7 @@ const slugify = (text: string) => {
 };
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "posts" | "tags">("posts");
+  const [activeTab, setActiveTab] = useState<"overview" | "posts" | "tags" | "comments">("posts");
   const [posts, setPosts] = useState<AdminPost[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,6 +83,11 @@ export default function AdminPage() {
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tagName, setTagName] = useState("");
   const [tagSlug, setTagSlug] = useState("");
+
+  // Comment Moderation states
+  const [selectedPostIdForComments, setSelectedPostIdForComments] = useState<string>("");
+  const [moderationComments, setModerationComments] = useState<any[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -300,6 +305,50 @@ export default function AdminPage() {
     }
   };
 
+  // Comment Moderation handlers
+  const fetchCommentsForPost = async (postId: string) => {
+    if (!postId) {
+      setModerationComments([]);
+      return;
+    }
+    setCommentsLoading(true);
+    try {
+      const res = await api.get(`/api/comments/post/${postId}`);
+      setModerationComments(res.data || []);
+    } catch (err) {
+      console.error("Lỗi khi tải bình luận", err);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa bình luận này không?")) return;
+    try {
+      await api.delete(`/api/comments/${commentId}`);
+      await fetchCommentsForPost(selectedPostIdForComments);
+    } catch (err) {
+      console.error("Xóa bình luận thất bại", err);
+      alert("Xóa bình luận thất bại.");
+    }
+  };
+
+  // Load comments when selected post changes
+  useEffect(() => {
+    if (selectedPostIdForComments) {
+      fetchCommentsForPost(selectedPostIdForComments);
+    } else {
+      setModerationComments([]);
+    }
+  }, [selectedPostIdForComments]);
+
+  // Auto-select first post for comments tab
+  useEffect(() => {
+    if (activeTab === "comments" && posts.length > 0 && !selectedPostIdForComments) {
+      setSelectedPostIdForComments(posts[0].id);
+    }
+  }, [activeTab, posts]);
+
   // Stats calculation
   const totalPostsCount = posts.length;
   const adminStats = [
@@ -313,6 +362,7 @@ export default function AdminPage() {
     { id: "overview" as const, label: "Tổng quan", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "posts" as const, label: "Bài viết", icon: <FileText className="w-4 h-4" /> },
     { id: "tags" as const, label: "Tags", icon: <Tag className="w-4 h-4" /> },
+    { id: "comments" as const, label: "Bình luận", icon: <MessageSquare className="w-4 h-4" /> },
   ];
 
   return (
@@ -520,6 +570,78 @@ export default function AdminPage() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "comments" && (
+        <div className="rounded-2xl bg-card border border-border p-6 animate-fade-in">
+          <div className="mb-6 max-w-md">
+            <label className="block text-sm font-medium text-foreground mb-2">Chọn bài viết để duyệt bình luận</label>
+            <select
+              value={selectedPostIdForComments}
+              onChange={(e) => setSelectedPostIdForComments(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
+            >
+              <option value="">-- Chọn bài viết --</option>
+              {posts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedPostIdForComments === "" ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              Vui lòng chọn một bài viết ở trên để kiểm duyệt bình luận.
+            </div>
+          ) : commentsLoading ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              <span className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block mr-2 align-middle" />
+              Đang tải danh sách bình luận...
+            </div>
+          ) : moderationComments.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              Bài viết này hiện chưa có bình luận nào.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-secondary/20 text-muted-foreground text-xs uppercase font-semibold">
+                    <th className="p-4">Người viết</th>
+                    <th className="p-4">Nội dung bình luận</th>
+                    <th className="p-4">Ngày bình luận</th>
+                    <th className="p-4 text-right">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-sm text-foreground/90">
+                  {moderationComments.map((c) => (
+                    <tr key={c.id} className="hover:bg-secondary/30 transition-colors">
+                      <td className="p-4 font-semibold text-foreground/80">
+                        {c.author || c.userName || "Ẩn danh"}
+                      </td>
+                      <td className="p-4 max-w-xs sm:max-w-md md:max-w-lg truncate leading-relaxed">
+                        {c.content}
+                      </td>
+                      <td className="p-4 text-xs text-muted-foreground">
+                        {new Date(c.createdAt || c.date).toLocaleDateString("vi-VN")}
+                      </td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDeleteComment(c.id)}
+                          className="p-1.5 rounded-lg hover:bg-red-400/10 text-muted-foreground hover:text-red-400 transition-colors"
+                          title="Xóa bình luận"
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
+                        </button>
                       </td>
                     </tr>
                   ))}
