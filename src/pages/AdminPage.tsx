@@ -17,6 +17,7 @@ import {
   Upload,
   Link as LinkIcon,
   AlertTriangle,
+  Tag,
 } from "lucide-react";
 import api from "../services/api";
 import Avatar from "../components/Avatar";
@@ -55,7 +56,7 @@ const slugify = (text: string) => {
 };
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "posts">("posts");
+  const [activeTab, setActiveTab] = useState<"overview" | "posts" | "tags">("posts");
   const [posts, setPosts] = useState<AdminPost[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,6 +75,14 @@ export default function AdminPage() {
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Tag Management states
+  const [showTagForm, setShowTagForm] = useState(false);
+  const [tagFormLoading, setTagFormLoading] = useState(false);
+  const [tagErrorMsg, setTagErrorMsg] = useState("");
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [tagName, setTagName] = useState("");
+  const [tagSlug, setTagSlug] = useState("");
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -225,6 +234,72 @@ export default function AdminPage() {
     }
   };
 
+  // Tag Management handlers
+  const handleTagNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTagName(val);
+    if (!editingTagId) {
+      setTagSlug(slugify(val));
+    }
+  };
+
+  const handleOpenCreateTagForm = () => {
+    setEditingTagId(null);
+    setTagName("");
+    setTagSlug("");
+    setTagErrorMsg("");
+    setShowTagForm(true);
+  };
+
+  const handleOpenEditTagForm = (tag: Tag) => {
+    setEditingTagId(tag.id);
+    setTagName(tag.name);
+    setTagSlug(tag.slug);
+    setTagErrorMsg("");
+    setShowTagForm(true);
+  };
+
+  const handleSubmitTagForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTagErrorMsg("");
+    setTagFormLoading(true);
+
+    const payload = {
+      name: tagName,
+      slug: tagSlug,
+    };
+
+    try {
+      if (editingTagId) {
+        await api.put(`/api/tags/${editingTagId}`, payload);
+      } else {
+        await api.post("/api/tags", payload);
+      }
+      setShowTagForm(false);
+      await fetchTags();
+    } catch (err: any) {
+      setTagErrorMsg(
+        err.response?.data?.message ||
+          err.response?.data?.Message ||
+          err.message ||
+          "Lưu nhãn thất bại. Hãy chắc chắn tên nhãn hoặc slug không trùng lặp."
+      );
+    } finally {
+      setTagFormLoading(false);
+    }
+  };
+
+  const handleDeleteTag = async (id: string, name: string) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhãn #${name} không?`)) return;
+
+    try {
+      await api.delete(`/api/tags/${id}`);
+      await fetchTags();
+    } catch (err: any) {
+      alert("Xóa nhãn thất bại.");
+    }
+  };
+
   // Stats calculation
   const totalPostsCount = posts.length;
   const adminStats = [
@@ -237,6 +312,7 @@ export default function AdminPage() {
   const tabs = [
     { id: "overview" as const, label: "Tổng quan", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "posts" as const, label: "Bài viết", icon: <FileText className="w-4 h-4" /> },
+    { id: "tags" as const, label: "Tags", icon: <Tag className="w-4 h-4" /> },
   ];
 
   return (
@@ -392,6 +468,68 @@ export default function AdminPage() {
         </div>
       )}
 
+      {activeTab === "tags" && (
+        <div className="rounded-2xl bg-card border border-border overflow-hidden animate-fade-in">
+          <div className="flex items-center justify-between p-5 border-b border-border">
+            <h3 className="font-semibold text-foreground">Tất cả nhãn bài viết ({tags.length})</h3>
+            <button
+              onClick={handleOpenCreateTagForm}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Thêm nhãn mới
+            </button>
+          </div>
+          {tags.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              Chưa có nhãn bài viết nào trong cơ sở dữ liệu.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-secondary/20 text-muted-foreground text-xs uppercase font-semibold">
+                    <th className="p-4">Tên nhãn</th>
+                    <th className="p-4">Đường dẫn tĩnh (Slug)</th>
+                    <th className="p-4 text-right">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-sm text-foreground/90">
+                  {tags.map((tag) => (
+                    <tr key={tag.id} className="hover:bg-secondary/30 transition-colors">
+                      <td className="p-4 font-medium flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-primary" />
+                        {tag.name}
+                      </td>
+                      <td className="p-4 font-mono text-xs text-muted-foreground">
+                        {tag.slug}
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleOpenEditTagForm(tag)}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-accent transition-colors"
+                            title="Sửa nhãn"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTag(tag.id, tag.name)}
+                            className="p-1.5 rounded-lg hover:bg-red-400/10 text-muted-foreground hover:text-red-400 transition-colors"
+                            title="Xóa nhãn"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Editor Modal overlay */}
       {showForm && (
         <div
@@ -535,6 +673,82 @@ export default function AdminPage() {
                     <CheckCircle2 className="w-4 h-4" />
                   )}
                   {formLoading ? "Đang lưu..." : "Lưu bài viết"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Form Modal overlay */}
+      {showTagForm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in"
+          style={{ background: "rgba(15,35,24,0.55)", backdropFilter: "blur(8px)" }}
+        >
+          <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
+                {editingTagId ? "Chỉnh sửa nhãn" : "Tạo nhãn mới"}
+              </h2>
+              <button
+                onClick={() => setShowTagForm(false)}
+                className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {tagErrorMsg && (
+              <div className="mb-4 text-xs text-red-400 p-2.5 rounded-xl bg-red-400/10 flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5" /> {tagErrorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitTagForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Tên nhãn</label>
+                <input
+                  type="text"
+                  required
+                  value={tagName}
+                  onChange={handleTagNameChange}
+                  placeholder="Ví dụ: Lập trình C#"
+                  className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Đường dẫn tĩnh (Slug)</label>
+                <input
+                  type="text"
+                  required
+                  value={tagSlug}
+                  onChange={(e) => setTagSlug(e.target.value)}
+                  placeholder="vi-du-lap-trinh-csharp"
+                  className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-foreground text-sm focus:outline-none focus:border-primary/60 transition-colors"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-border flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTagForm(false)}
+                  className="px-4 py-2 rounded-lg border border-border text-xs font-medium hover:bg-secondary transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={tagFormLoading}
+                  className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-60 transition-colors flex items-center gap-1"
+                >
+                  {tagFormLoading ? (
+                    <span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  )}
+                  {tagFormLoading ? "Đang lưu..." : "Lưu nhãn"}
                 </button>
               </div>
             </form>
