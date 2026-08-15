@@ -1,4 +1,5 @@
 import React from "react";
+import avatarImg from "../assets/avatar.png";
 import {
   Monitor,
   Cpu,
@@ -80,7 +81,7 @@ export default function AboutPage() {
           <div className="relative">
             <div className="w-full aspect-square rounded-3xl overflow-hidden">
               <img
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&h=500&fit=crop&auto=format"
+                src={avatarImg}
                 alt="Trần Quốc Cường"
                 className="w-full h-full object-cover"
               />
